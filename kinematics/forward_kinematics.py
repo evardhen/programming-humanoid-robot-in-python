@@ -19,6 +19,7 @@
 # add PYTHONPATH
 import os
 import sys
+import numpy as np
 sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'joint_control'))
 
 from numpy.matlib import matrix, identity
@@ -36,9 +37,42 @@ class ForwardKinematicsAgent(PostureRecognitionAgent):
         self.transforms = {n: identity(4) for n in self.joint_names}
 
         # chains defines the name of chain and joints of the chain
-        self.chains = {'Head': ['HeadYaw', 'HeadPitch']
+        self.chains = {'Head': ['HeadYaw', 'HeadPitch'],
                        # YOUR CODE HERE
+                       'LArm': ['LShoulderPitch', 'LShoulderRoll', 'LElbowYaw', 'LElbowRoll', 'LWristYaw'],
+                       'RArm': ['RShoulderPitch', 'RShoulderRoll', 'RElbowYaw', 'RElbowRoll', 'RWristYaw'],
+                       'LLeg': ['LHipYawPitch', 'LHipRoll', 'LHipPitch', 'LKneePitch', 'LAnklePitch', 'RAnkleRoll'],
+                       'RLeg': ['RHipYawPitch', 'RHipRoll', 'RHipPitch', 'RKneePitch', 'RAnklePitch', 'LAnkleRoll'],
                        }
+        self.offset = {'HeadYaw': [0., 0., 126.50],
+                   'HeadPitch': [0., 0., 0.],
+
+                   'LShoulderPitch': [0., 98.00, 100.],
+                   'LShoulderRoll': [0., 0., 0.],
+                   'LElbowYaw': [105.00, 15.00, 0.],
+                   'LElbowRoll': [0., 0., 0.],
+                   'LWristYaw': [55.95, 0., 0.],
+
+                   'RShoulderPitch': [0., -98.00, 100.],
+                   'RShoulderRoll': [0., 0., 0.],
+                   'RElbowYaw': [105.00, -15.00, 0.],
+                   'RElbowRoll': [0., 0., 0.],
+                   'RWristYaw': [55.95, 0., 0.],
+
+                   'LHipYawPitch'   : [0., 50., -85.00],
+                   'LHipRoll': [0., 0., 0.],
+                   'LHipPitch': [0., 0., 0.],
+                   'LKneePitch': [0., 0., -100.],
+                   'LAnklePitch': [0., 0., -102.90],
+                   'LAnkleRoll': [0., 0., 0.],
+
+                   'RHipYawPitch': [0., -50., -85.00],
+                   'RHipRoll': [0., 0., 0.],
+                   'RHipPitch': [0., 0., 0.],
+                   'RKneePitch': [0., 0., -100.],
+                   'RAnklePitch': [0., 0., -102.90],
+                   'RAnkleRoll': [0., 0., 0.]}
+
 
     def think(self, perception):
         self.forward_kinematics(perception.joint)
@@ -54,7 +88,23 @@ class ForwardKinematicsAgent(PostureRecognitionAgent):
         '''
         T = identity(4)
         # YOUR CODE HERE
+        s = np.sin(joint_angle)
+        c = np.cos(joint_angle)
+        Rx = np.array([[1,0,0,0], [0, c, -s, 0], [0, s, c, 0], [0,0,0,1]])
+        Ry = np.array([[c, 0, s, 0], [0,1,0, 0], [-s, 0, c, 0], [0,0,0,1]])
+        Rz = np.array([[c, s, 0, 0], [-s, c, 0, 0], [0,0,1,0], [0,0,0,1]])
 
+        # joints separated by axis-rotation (on the website, they are differently separated)
+        if joint_name == 'LHipYawPitch' or joint_name == 'RHipYawPitch':
+            T = np.dot(Rz, Ry)
+        elif joint_name.endswith("Roll"):
+            T = Rx
+        elif joint_name.endswith("Pitch"):
+            T = Ry
+        elif joint_name.endswith("Yaw"):
+            T = Rz
+
+        T[-1, :3] = self.offset[joint_name] # set offset coordinates
         return T
 
     def forward_kinematics(self, joints):
@@ -65,11 +115,15 @@ class ForwardKinematicsAgent(PostureRecognitionAgent):
         for chain_joints in self.chains.values():
             T = identity(4)
             for joint in chain_joints:
+                if joint == 'LWristYaw' or joint == 'RWristYaw': # Wrist doesnt have a motor -> only for distance
+                    Tl = self.local_trans(joint, 0)
+                    T  = np.dot(T, Tl)
+                    self.transforms[joint] = T
+                    continue
                 angle = joints[joint]
                 Tl = self.local_trans(joint, angle)
-                # YOUR CODE HERE
-
-                self.transforms[joint] = T
+                T  = np.dot(T, Tl)
+                self.transforms[joint] = T # contains alle the multiplied homogenous matrices
 
 if __name__ == '__main__':
     agent = ForwardKinematicsAgent()
