@@ -41,7 +41,6 @@ class InverseKinematicsAgent(ForwardKinematicsAgent):
             self.forward_kinematics(all_joints) # generate homogenous transformation matrices
             T = self.get_list_HTM(effector_name) # get list of homogenous transformation matrices
             Forward_T = np.array([self.from_trans(T[-1])]).T
-            print(T[-1])
             error = target - Forward_T
             error[error > max_step] = max_step
             error[error < -max_step] = -max_step
@@ -82,7 +81,6 @@ class InverseKinematicsAgent(ForwardKinematicsAgent):
             times.append([2, 5])
             keys.append([[self.perception.joint[name], [3, 0, 0], [3, 0, 0]], [angles[name], [3, 0, 0], [3, 0, 0]]])
         self.keyframes = (names, times, keys)
-        print(angles)
 
 if __name__ == '__main__':
     agent = InverseKinematicsAgent()
